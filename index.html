@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fx-82ES PLUS — Scientific Calculator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="stage">
+    <div class="calculator" id="calculator">
+      <div class="brandbar">
+        <div class="brand-left">
+          <span class="brand">CASIO</span>
+        </div>
+        <div class="brand-right">
+          <span class="model">fx-82ES PLUS</span>
+        </div>
+      </div>
+      <div class="subbar">
+        <span class="natural">NATURAL-V.P.A.M.</span>
+        <span class="edition">2nd edition</span>
+      </div>
+
+      <div class="display" id="display">
+        <div class="indicators" id="indicators">
+          <span class="ind" data-ind="shift">S</span>
+          <span class="ind" data-ind="alpha">A</span>
+          <span class="ind" data-ind="m">M</span>
+          <span class="ind" data-ind="sto">STO</span>
+          <span class="ind" data-ind="rcl">RCL</span>
+          <span class="ind" data-ind="hyp">HYP</span>
+          <span class="ind" data-ind="drg">D</span>
+          <span class="ind-spacer"></span>
+          <span class="ind" data-ind="math">Math</span>
+          <span class="ind" data-ind="updown">▲▼</span>
+        </div>
+        <div class="screen">
+          <div class="expr-line" id="exprLine"><span class="cursor"></span></div>
+          <div class="result-line" id="resultLine"></div>
+        </div>
+      </div>
+
+      <div class="top-controls">
+        <div class="tc-left">
+          <button class="kbtn ctrl shift" data-key="SHIFT">SHIFT</button>
+          <button class="kbtn ctrl alpha" data-key="ALPHA">ALPHA</button>
+        </div>
+        <div class="dpad">
+          <button class="dbtn up" data-key="UP" aria-label="Up">▲</button>
+          <button class="dbtn left" data-key="LEFT" aria-label="Left">◀</button>
+          <div class="dcenter"></div>
+          <button class="dbtn right" data-key="RIGHT" aria-label="Right">▶</button>
+          <button class="dbtn down" data-key="DOWN" aria-label="Down">▼</button>
+        </div>
+        <div class="tc-right">
+          <button class="kbtn ctrl" data-key="MODE">MODE<small>SETUP</small></button>
+          <button class="kbtn ctrl on" data-key="ON">ON</button>
+        </div>
+      </div>
+
+      <div class="keypad sci-grid" id="keypadSci"></div>
+      <div class="keypad num-grid" id="keypadNum"></div>
+
+      <div class="footer">
+        <span class="solar">☀ SOLAR</span>
+        <span class="tagline">Scientific Calculator</span>
+      </div>
+    </div>
+    <p class="hint">
+      Tip: use your keyboard too — digits, <code>+ − × ÷ ^ ( )</code>, Enter for =,
+      Backspace for DEL, Esc for AC, <code>s/c/t</code> for sin/cos/tan,
+      <code>p</code> for π.
+    </p>
+  </main>
+
+  <script src="calculator.js"></script>
+</body>
+</html>
