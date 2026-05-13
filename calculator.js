@@ -37,8 +37,8 @@
       action: "fn:abs(" },
     { id: "X3",    cls: "fn",  main: "x³",    shift: "∛",      alpha: "",
       action: "pf:³",          shiftAction: "fn:cbrt(" },
-    { id: "FRAC",  cls: "fn",  main: "<span class='box'></span>/<span class='box'></span>", shift: "", alpha: "",
-      action: "op:/" },
+    { id: "FRAC",  cls: "fn",  main: "<span class='box'></span>/<span class='box'></span>", shift: "<span class='box'></span><span class='box'></span>/<span class='box'></span>", alpha: "",
+      action: "cmd:frac",     shiftAction: "cmd:mfrac" },
     { id: "XINV",  cls: "fn",  main: "x⁻¹",  shift: "x!",      alpha: "",
       action: "pf:⁻¹",        shiftAction: "pf:!" },
     { id: "LOGB",  cls: "fn",  main: "log<sub>□</sub>", shift: "10ˣ", alpha: "",
@@ -231,20 +231,83 @@
     );
   }
 
-  function renderExpr() {
-    const cursorEl = '<span class="cursor"></span>';
-    let html = "";
-    const toks = state.tokens;
+  /* Build a map of fraction structures: open-index -> {open,bar,close} */
+  function buildFracMap(toks) {
+    const stack = [];
+    const map = {};
     for (let i = 0; i < toks.length; i++) {
-      if (i === state.cursor) html += cursorEl;
-      // detect ×10^ followed by digits — superscript the digits
       const t = toks[i];
+      if (t.kind === "frac_open") {
+        const e = { open: i, bar: -1, close: -1 };
+        stack.push(e);
+        map[i] = e;
+      } else if (t.kind === "frac_bar" && stack.length) {
+        stack[stack.length - 1].bar = i;
+      } else if (t.kind === "frac_close" && stack.length) {
+        stack[stack.length - 1].close = i;
+        stack.pop();
+      }
+    }
+    return map;
+  }
+
+  /* Find the fraction record (open/bar/close) for a given index that is one
+     of those three structural tokens. */
+  function fracForIdx(toks, idx, map) {
+    map = map || buildFracMap(toks);
+    if (toks[idx] && toks[idx].kind === "frac_open") return map[idx];
+    for (const k in map) {
+      const e = map[k];
+      if (e.bar === idx || e.close === idx) return e;
+    }
+    return null;
+  }
+
+  /* Innermost fraction containing the cursor position (cursor > open && cursor <= close). */
+  function fracAroundCursor() {
+    const map = buildFracMap(state.tokens);
+    let best = null;
+    for (const k in map) {
+      const e = map[k];
+      if (state.cursor > e.open && state.cursor <= e.close) {
+        if (!best || e.open > best.open) best = e;
+      }
+    }
+    return best;
+  }
+
+  function renderTokensRange(start, end) {
+    const cursorEl = '<span class="cursor"></span>';
+    const toks = state.tokens;
+    let html = "";
+    let i = start;
+    while (i < end) {
+      if (i === state.cursor) html += cursorEl;
+      const t = toks[i];
+      if (t.kind === "frac_open") {
+        const map = buildFracMap(toks);
+        const e = map[i];
+        const barIdx   = e && e.bar   >= 0 ? e.bar   : i + 1;
+        const closeIdx = e && e.close >= 0 ? e.close : end - 1;
+        let numH = renderTokensRange(i + 1, barIdx);
+        let denH = renderTokensRange(barIdx + 1, closeIdx);
+        if (!numH) numH = '<span class="ph">&#9633;</span>';
+        if (!denH) denH = '<span class="ph">&#9633;</span>';
+        html += `<span class="frac"><span class="num">${numH}</span><span class="den">${denH}</span></span>`;
+        i = closeIdx + 1;
+        continue;
+      }
+      if (t.kind === "frac_bar" || t.kind === "frac_close") {
+        // structural separators are rendered by the enclosing frac_open
+        i++;
+        continue;
+      }
       if (t.kind === "sci") {
         html += "×10";
         let j = i + 1;
         let exp = "";
-        // optional leading unary minus
-        if (j < toks.length && (toks[j].kind === "neg" || (toks[j].kind === "op" && toks[j].eval === "-"))) {
+        if (j < toks.length &&
+            (toks[j].kind === "neg" || (toks[j].kind === "op" && toks[j].eval === "-"))) {
           exp += "-";
           j++;
         }
@@ -253,7 +316,6 @@
           j++;
         }
         if (exp) {
-          // render cursor inside the sup if it falls in that range
           if (state.cursor > i && state.cursor <= j) {
             let inner = "";
             for (let k = i + 1; k < j; k++) {
@@ -265,16 +327,28 @@
           } else {
             html += `<span class="sup">${escape(exp)}</span>`;
           }
-          i = j - 1;
+          i = j;
         } else {
           html += `<span class="sup">x</span>`;
+          i++;
         }
         continue;
       }
       html += renderToken(t, toks[i + 1]);
+      i++;
     }
-    if (state.cursor === toks.length) html += cursorEl;
-    exprLine.innerHTML = html || cursorEl;
+    if (state.cursor === end) html += cursorEl;
+    return html;
+  }
+
+  function renderExpr() {
+    const html = renderTokensRange(0, state.tokens.length);
+    exprLine.innerHTML = html || '<span class="cursor"></span>';
+  }
+
+  function prettifyResult(s) {
+    // Convert "1.23×10^5" -> "1.23×10<sup>5</sup>" for nicer display
+    return String(s).replace(/×10\^(-?\d+)/g, "×10<sup>$1</sup>");
   }
 
   function renderResult() {
@@ -285,9 +359,9 @@
     }
     resultLine.style.color = "";
     if (state.showingResult) {
-      resultLine.textContent = state.resultDisplay;
+      resultLine.innerHTML = prettifyResult(state.resultDisplay);
     } else {
-      resultLine.textContent = "";
+      resultLine.innerHTML = "";
     }
   }
 
@@ -352,10 +426,73 @@
       state.showingResult = false;
       return;
     }
-    if (state.cursor > 0) {
-      state.tokens.splice(state.cursor - 1, 1);
-      state.cursor--;
+    if (state.cursor === 0) return;
+    const prev = state.tokens[state.cursor - 1];
+    if (prev && (prev.kind === "frac_open"
+              || prev.kind === "frac_bar"
+              || prev.kind === "frac_close")) {
+      // Remove the entire fraction (open through close) including content.
+      const e = fracForIdx(state.tokens, state.cursor - 1);
+      if (e && e.open >= 0 && e.close >= 0) {
+        state.tokens.splice(e.open, e.close - e.open + 1);
+        state.cursor = e.open;
+        return;
+      }
     }
+    state.tokens.splice(state.cursor - 1, 1);
+    state.cursor--;
+  }
+
+  function insertFraction() {
+    if (state.showingResult) {
+      state.tokens = [];
+      state.cursor = 0;
+      state.showingResult = false;
+      state.err = null;
+    }
+    const open  = mkTok("frac_open",  "", "(");
+    const bar   = mkTok("frac_bar",   "", ")/(");
+    const close = mkTok("frac_close", "", ")");
+    state.tokens.splice(state.cursor, 0, open, bar, close);
+    state.cursor += 1; // place inside numerator
+  }
+
+  /* UP/DOWN: move cursor between numerator and denominator of the innermost
+     fraction containing the cursor. */
+  function moveCursorUpDown(dir) {
+    const e = fracAroundCursor();
+    if (!e || e.bar < 0) return;
+    if (dir < 0) {
+      // UP: into numerator
+      if (state.cursor > e.bar) state.cursor = e.bar;
+    } else {
+      // DOWN: into denominator
+      if (state.cursor <= e.bar) state.cursor = e.bar + 1;
+    }
+    state.showingResult = false;
+  }
+
+  function insertMixedFraction() {
+    // Mixed: whole [ num / den ] — modeled as (whole+(num)/(den))
+    if (state.showingResult) {
+      state.tokens = [];
+      state.cursor = 0;
+      state.showingResult = false;
+      state.err = null;
+    }
+    // Insert: m_open, (whole), m_plus, frac_open, frac_bar, frac_close, m_close
+    // We'll piggyback on regular tokens for the whole-part wrapping.
+    const tokens = [
+      mkTok("paren", "(", "("),
+      mkTok("frac_open",  "", "("),
+      mkTok("frac_bar",   "", ")/("),
+      mkTok("frac_close", "", ")"),
+      mkTok("paren", ")", ")"),
+    ];
+    state.tokens.splice(state.cursor, 0, ...tokens);
+    // place cursor before the frac_open so user types whole part first;
+    // they then press RIGHT to enter the fraction.
+    state.cursor += 1;
   }
 
   function clearAll() {
@@ -416,6 +553,26 @@
     const num = sign * h1;
     if (Math.abs(num / k1 - n) > 1e-9) return formatNumber(n);
     return num + "/" + k1;
+  }
+
+  /* Stacked-fraction HTML for the result line; falls back to plain text if
+     no clean rational approximation exists. Auto-extracts the integer part
+     so e.g. 7/4 displays as 1¼ (mixed). */
+  function toFractionHtml(n) {
+    const s = toFractionString(n);
+    if (!s.includes("/")) return formatNumber(n);
+    const [a, b] = s.split("/").map(Number);
+    const sign = a < 0 ? -1 : 1;
+    const num = Math.abs(a);
+    const den = b;
+    const whole = Math.floor(num / den);
+    const rem = num - whole * den;
+    const wholeStr = whole > 0 ? (sign < 0 ? "-" + whole : whole) : (sign < 0 ? "-" : "");
+    if (rem === 0) return String(sign * num / 1); // shouldn't hit
+    const fracHtml =
+      `<span class="frac"><span class="num">${rem}</span>` +
+      `<span class="den">${den}</span></span>`;
+    return wholeStr + fracHtml;
   }
 
   /* ------------------------------------------------------------ */
@@ -705,6 +862,14 @@
       render();
       return;
     }
+    if (id === "LEFT")  { if (state.cursor > 0) state.cursor--; state.showingResult = false; render(); return; }
+    if (id === "RIGHT") { if (state.cursor < state.tokens.length) state.cursor++; state.showingResult = false; render(); return; }
+    if (id === "UP")    { moveCursorUpDown(-1); render(); return; }
+    if (id === "DOWN")  { moveCursorUpDown(+1); render(); return; }
+    if (id === "MODE")  {
+      state.drg = state.drg === "DEG" ? "RAD" : state.drg === "RAD" ? "GRA" : "DEG";
+      render(); return;
+    }
 
     if (state.err && id !== "AC" && id !== "DEL") {
       // any key after error: just clear error
@@ -772,6 +937,12 @@
 
   function handleCmd(cmd) {
     switch (cmd) {
+      case "frac":
+        insertFraction();
+        break;
+      case "mfrac":
+        insertMixedFraction();
+        break;
       case "ac":
         clearAll();
         break;
@@ -793,7 +964,7 @@
         if (state.showingResult && state.result !== null) {
           state.sdMode = state.sdMode === "dec" ? "frac" : "dec";
           state.resultDisplay = state.sdMode === "frac"
-            ? toFractionString(state.result)
+            ? toFractionHtml(state.result)
             : formatNumber(state.result);
         }
         break;
@@ -916,10 +1087,6 @@
       const t = e.target.closest("[data-key]");
       if (!t) return;
       const k = t.dataset.key;
-      if (k === "UP" || k === "DOWN") return;
-      if (k === "LEFT") { if (state.cursor > 0) state.cursor--; state.showingResult = false; render(); return; }
-      if (k === "RIGHT") { if (state.cursor < state.tokens.length) state.cursor++; state.showingResult = false; render(); return; }
-      if (k === "MODE") { state.drg = state.drg === "DEG" ? "RAD" : state.drg === "RAD" ? "GRA" : "DEG"; render(); return; }
       flash(t);
       pressKey(k);
     });
@@ -970,6 +1137,8 @@
       state.showingResult = false; render();
       e.preventDefault(); return;
     }
+    if (e.key === "ArrowUp")   { moveCursorUpDown(-1); render(); e.preventDefault(); return; }
+    if (e.key === "ArrowDown") { moveCursorUpDown(+1); render(); e.preventDefault(); return; }
     const mapped = KEY_MAP[e.key];
     if (mapped) {
       e.preventDefault();
