@@ -1,4 +1,4 @@
-/* fx-82ES PLUS — Scientific Calculator
+/* fx(x)=g PLUS — Scientific Calculator
  * Practical re-implementation in vanilla JS. Linear input display,
  * supports SHIFT / ALPHA / HYP modifiers, DRG modes, memory M,
  * Ans, factorials, nPr/nCr, sci notation, etc.
