@@ -1155,7 +1155,7 @@
     "a": () => insertToken(tokenForAction("const:Ans")),
     ",": () => insertToken(tokenForAction("comma:,")),
   };
-  document.addEventListener("keydown", (e) => {
+  function handleKeydown(e) {
     // ignore when focus is in an input (none here, but safety)
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
     if (e.key === "ArrowLeft") {
@@ -1173,7 +1173,7 @@
     const mapped = KEY_MAP[e.key];
     if (mapped) {
       e.preventDefault();
-      const btn = document.querySelector(`[data-key="${mapped}"]`);
+      const btn = calcEl.querySelector(`[data-key="${mapped}"]`);
       if (btn) flash(btn);
       pressKey(mapped);
       return;
@@ -1185,7 +1185,124 @@
       render();
       return;
     }
-  });
+  }
+  document.addEventListener("keydown", handleKeydown);
+
+  /* ------------------------------------------------------------ */
+  /* Auto-fit calculator to viewport                               */
+  /* ------------------------------------------------------------ */
+  const fitWrap = document.getElementById("fitWrap");
+  const calcEl = document.getElementById("calculator");
+  function fitToViewport(win) {
+    if (!fitWrap || !calcEl) return;
+    const w = win || (fitWrap.ownerDocument && fitWrap.ownerDocument.defaultView) || window;
+    // Reset to measure natural size
+    fitWrap.style.transform = "translate(-50%, -50%)";
+    const natW = calcEl.offsetWidth;
+    const natH = calcEl.offsetHeight;
+    if (!natW || !natH) return;
+    const availW = w.innerWidth - 16;
+    const availH = w.innerHeight - 16;
+    const scale = Math.min(availW / natW, availH / natH, 1.6);
+    fitWrap.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+  // Defer first fit to allow fonts/layout to settle
+  requestAnimationFrame(() => fitToViewport());
+  window.addEventListener("resize", () => fitToViewport());
+
+  /* ------------------------------------------------------------ */
+  /* Picture-in-Picture (always-on-top) toggle                     */
+  /* ------------------------------------------------------------ */
+  const pipBtn = document.getElementById("pipToggle");
+  if (pipBtn) {
+    if (!("documentPictureInPicture" in window)) {
+      pipBtn.hidden = true;
+    } else {
+      let pipWin = null;
+      let placeholder = null;
+
+      function copyStylesTo(targetDoc) {
+        for (const sheet of document.styleSheets) {
+          try {
+            if (sheet.href) {
+              const link = targetDoc.createElement("link");
+              link.rel = "stylesheet";
+              link.href = sheet.href;
+              targetDoc.head.appendChild(link);
+            } else if (sheet.cssRules) {
+              const style = targetDoc.createElement("style");
+              for (const rule of sheet.cssRules) style.append(rule.cssText);
+              targetDoc.head.appendChild(style);
+            }
+          } catch (err) {
+            // cross-origin sheets — fall back to a link
+            if (sheet.href) {
+              const link = targetDoc.createElement("link");
+              link.rel = "stylesheet";
+              link.href = sheet.href;
+              targetDoc.head.appendChild(link);
+            }
+          }
+        }
+      }
+
+      async function openPip() {
+        try {
+          pipWin = await window.documentPictureInPicture.requestWindow({
+            width: 380,
+            height: 640,
+          });
+        } catch (err) {
+          console.warn("PiP rejected:", err);
+          return;
+        }
+        copyStylesTo(pipWin.document);
+        pipWin.document.body.style.margin = "0";
+        pipWin.document.body.style.background = "#0b0b0e";
+
+        // Build a stage inside the PiP doc and move the fit-wrap into it
+        const pipStage = pipWin.document.createElement("main");
+        pipStage.className = "stage";
+        pipWin.document.body.appendChild(pipStage);
+        placeholder = document.createComment("pip-placeholder");
+        fitWrap.parentNode.insertBefore(placeholder, fitWrap);
+        pipStage.appendChild(fitWrap);
+
+        // Wire clicks + keyboard in PiP (the buttons live in this document now)
+        bindClicks(pipWin.document);
+        pipWin.document.addEventListener("keydown", handleKeydown);
+
+        // Refit to PiP window dimensions
+        const refit = () => fitToViewport(pipWin);
+        requestAnimationFrame(refit);
+        pipWin.addEventListener("resize", refit);
+
+        pipBtn.classList.add("active");
+        pipBtn.textContent = "⇲ Return to page";
+
+        pipWin.addEventListener("pagehide", () => {
+          if (placeholder && placeholder.parentNode) {
+            placeholder.parentNode.insertBefore(fitWrap, placeholder);
+            placeholder.remove();
+            placeholder = null;
+          }
+          pipWin = null;
+          pipBtn.classList.remove("active");
+          pipBtn.textContent = "⇱ Always on top";
+          requestAnimationFrame(() => fitToViewport());
+        });
+      }
+
+      function closePip() {
+        if (pipWin) pipWin.close();
+      }
+
+      pipBtn.addEventListener("click", () => {
+        if (pipWin) closePip();
+        else openPip();
+      });
+    }
+  }
 
   /* ------------------------------------------------------------ */
   /* Init                                                          */

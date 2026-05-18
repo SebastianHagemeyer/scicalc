@@ -43,11 +43,53 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 28px 16px 60px;
+  justify-content: center;
+  padding: 12px;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
 }
 
+.fit-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+}
+
+.pip-toggle {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  z-index: 10;
+  background: #1f1f23;
+  color: #ddd;
+  border: 1px solid #3a3b40;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: background 0.15s, border-color 0.15s;
+}
+.pip-toggle:hover {
+  background: #2a2a2f;
+  border-color: #5a5b60;
+}
+.pip-toggle.active {
+  background: #2ec27e;
+  color: #04321d;
+  border-color: #1e7a4b;
+}
+.pip-toggle[hidden] { display: none; }
+
 .calculator {
-  width: min(440px, 96vw);
+  width: 440px;
+  flex: 0 0 auto;
   background:
     linear-gradient(180deg, #1d1d20 0%, #0f0f12 80%),
     var(--calc-bg);
@@ -420,12 +462,18 @@ html, body {
 .solar { color: #c89800; }
 
 .hint {
-  margin-top: 18px;
-  font-size: 12px;
-  color: #888;
-  max-width: 460px;
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 11px;
+  color: #777;
+  max-width: 92vw;
   text-align: center;
+  pointer-events: none;
 }
+@media (max-height: 720px) { .hint { display: none; } }
 .hint code {
   background: #1f1f23;
   padding: 1px 5px;
