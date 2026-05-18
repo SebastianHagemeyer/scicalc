@@ -281,8 +281,12 @@
     const toks = state.tokens;
     let html = "";
     let i = start;
+    let suppressNextCursor = false;
     while (i < end) {
-      if (i === state.cursor) html += cursorEl;
+      if (i === state.cursor) {
+        if (!suppressNextCursor) html += cursorEl;
+        suppressNextCursor = false;
+      }
       const t = toks[i];
       if (t.kind === "frac_open") {
         const map = buildFracMap(toks);
@@ -300,6 +304,33 @@
       if (t.kind === "frac_bar" || t.kind === "frac_close") {
         // structural separators are rendered by the enclosing frac_open
         i++;
+        continue;
+      }
+      if (t.kind === "op" && t.eval === "^") {
+        let j = i + 1;
+        if (j < toks.length &&
+            (toks[j].kind === "neg" ||
+             (toks[j].kind === "op" && toks[j].eval === "-"))) {
+          j++;
+        }
+        if (j < toks.length && toks[j].kind === "paren" && toks[j].display === "(") {
+          let depth = 1;
+          j++;
+          while (j < toks.length && depth > 0) {
+            if (toks[j].kind === "paren") {
+              if (toks[j].display === "(") depth++;
+              else if (toks[j].display === ")") depth--;
+            }
+            j++;
+          }
+        } else {
+          while (j < toks.length && toks[j].kind === "digit") j++;
+        }
+        const innerH = renderTokensRange(i + 1, j);
+        const supBody = innerH !== "" ? innerH : '<span class="ph">&#9633;</span>';
+        html += `<span class="sup">${supBody}</span>`;
+        if (state.cursor === j) suppressNextCursor = true;
+        i = j;
         continue;
       }
       if (t.kind === "sci") {
@@ -337,7 +368,7 @@
       html += renderToken(t, toks[i + 1]);
       i++;
     }
-    if (state.cursor === end) html += cursorEl;
+    if (state.cursor === end && !suppressNextCursor) html += cursorEl;
     return html;
   }
 

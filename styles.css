@@ -183,6 +183,11 @@ html, body {
   vertical-align: super;
   line-height: 0;
 }
+.expr-line .sup .ph {
+  display: inline-block;
+  min-width: 8px;
+  opacity: 0.5;
+}
 .expr-line .sub {
   font-size: 0.72em;
   vertical-align: sub;
@@ -365,9 +370,9 @@ html, body {
 
 .keypad .kbtn .main {
   pointer-events: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
+  display: inline-block;
+  line-height: 1;
+  white-space: nowrap;
 }
 .keypad .kbtn .shift-label,
 .keypad .kbtn .alpha-label {
